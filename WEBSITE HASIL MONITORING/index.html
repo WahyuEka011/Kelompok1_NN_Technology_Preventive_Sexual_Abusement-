@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Dashboard</title>
+
+    <!-- Link ke file CSS eksternal -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Google Font Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- PapaParse CDN untuk eksport CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <!-- MQTT.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+
+</head>
+
+<body class="bg-gray-100 transition-all duration-300">
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold text-center mb-6">Real-Time Sensor Dashboard</h1>
+
+        <div id="greeting-time" class="text-xl text-center mb-6">
+            <!-- Jam analog akan tampil di sini -->
+            <div id="clock" class="clock">
+                <div class="clock-face">
+                    <div class="hour hand"></div>
+                    <div class="minute hand"></div>
+                    <div class="second hand"></div>
+                    <div class="center"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toggle Light/Dark Mode Button -->
+        <button id="dark-mode-button" class="mb-6 px-4 py-2 bg-blue-500 text-white rounded-lg">Theme</button>
+
+        <!-- Card for each sensor -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Max30102 (Heart Rate) -->
+            <div class="card heart-rate-card p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-poppins-semibold mb-4 text-center">Detak Jantung</h2>
+                <div id="heart-rate" class="text-2xl">Heart Rate: 0 bpm</div>
+                <canvas id="max30102-heart-rate-chart" class="mt-4"></canvas>
+            </div>
+
+            <!-- Max30102 (SpO2) -->
+            <div class="card spo2-card p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-poppins-semibold mb-4 text-center">Saturasi O2 Dalam Darah</h2>
+                <div id="spo2" class="text-2xl">SpO2: 0 %</div>
+                <canvas id="max30102-spo2-chart" class="mt-4"></canvas>
+            </div>
+
+            <!-- SW-420 (Vibration Sensor) -->
+            <div class="card vibration-card p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-poppins-semibold mb-4 text-center">Indikasi Getaran</h2>
+                <div id="vibration-status" class="text-2xl">Status: Not Detected</div>
+                <canvas id="vibration-chart" class="mt-4"></canvas>
+            </div>
+
+            <!-- BMP280 (Pressure Sensor) -->
+            <div class="card pressure-card p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-poppins-semibold mb-4 text-center">Tekanan Darah</h2>
+                <div id="pressure" class="text-2xl">Tekanan Darah: 0 mmHg</div>
+                <canvas id="bmp280-chart" class="mt-4"></canvas>
+            </div>
+
+            <!-- DHT11 (Temperature) -->
+            <div class="card temperature-card p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-poppins-semibold mb-4 text-center">Temperatur Tubuh</h2>
+                <div id="temperature-dht" class="text-2xl">Temperatur: 0°C</div>
+                <canvas id="dht11-chart" class="mt-4"></canvas>
+            </div>
+
+            <!-- New Card for Humidity -->
+            <div class="card humidity-card p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-poppins-semibold mb-4 text-center">Kelembapan</h2>
+                <div id="humidity" class="text-2xl">Kelembapan: 0%</div>
+                <canvas id="humidity-chart" class="mt-4"></canvas>
+            </div>
+        </div>
+
+        <!-- Aktuator Controls -->
+        <div class="flex justify-center gap-4 mt-8">
+            <!-- Aktuator 1 -->
+            <div class="text-center">
+                <button id="actuator-1" class="actuator-btn px-4 py-2 bg-green-500 text-white rounded-lg">Aktuator 1</button>
+                <div class="flex flex-col items-center mt-2">
+                    <div id="status-circle-1" class="w-3 h-3 online-circle rounded-full"></div>
+                    <span id="status-text-1" class="text-xs online-text">Online</span>
+                </div>
+            </div>
+
+            <!-- Aktuator 2 -->
+            <div class="text-center">
+                <button id="actuator-2" class="actuator-btn px-4 py-2 bg-green-500 text-white rounded-lg">Aktuator 2</button>
+                <div class="flex flex-col items-center mt-2">
+                    <div id="status-circle-2" class="w-3 h-3 online-circle rounded-full"></div>
+                    <span id="status-text-2" class="text-xs online-text">Online</span>
+                </div>
+            </div>
+
+            <!-- Aktuator 3 -->
+            <div class="text-center">
+                <button id="actuator-3" class="actuator-btn px-4 py-2 bg-green-500 text-white rounded-lg">Aktuator 3</button>
+                <div class="flex flex-col items-center mt-2">
+                    <div id="status-circle-3" class="w-3 h-3 online-circle rounded-full"></div>
+                    <span id="status-text-3" class="text-xs online-text">Online</span>
+                </div>
+            </div>
+
+            <!-- Aktuator 4 -->
+            <div class="text-center">
+                <button id="actuator-4" class="actuator-btn px-4 py-2 bg-green-500 text-white rounded-lg">Aktuator 4</button>
+                <div class="flex flex-col items-center mt-2">
+                    <div id="status-circle-4" class="w-3 h-3 online-circle rounded-full"></div>
+                    <span id="status-text-4" class="text-xs online-text">Online</span>
+                </div>
+            </div>
+
+            <!-- Aktuator 5 -->
+            <div class="text-center">
+                <button id="actuator-5" class="actuator-btn px-4 py-2 bg-green-500 text-white rounded-lg">Aktuator 5</button>
+                <div class="flex flex-col items-center mt-2">
+                    <div id="status-circle-5" class="w-3 h-3 online-circle rounded-full"></div>
+                    <span id="status-text-5" class="text-xs online-text">Online</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Combined Graph -->
+        <div class="bg-white p-6 rounded-lg shadow-md mt-8">
+            <h2 class="text-2xl font-poppins-semibold mb-4">Combined Sensor Data</h2>
+            <canvas id="combined-chart"></canvas>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white p-6 rounded-lg shadow-md mt-8">
+            <h2 class="text-2xl font-poppins-semibold mb-4">Sensor Data Table</h2>
+            <table id="sensor-data" class="min-w-full table-auto">
+                <thead>
+                    <tr>
+                        <th class="px-4 py-2">Timestamp</th>
+                        <th class="px-4 py-2">Detak Jantung</th>
+                        <th class="px-4 py-2">Saturasi O2 Dalam Darah</th>
+                        <th class="px-4 py-2">Indikasi Getaran</th>
+                        <th class="px-4 py-2">Tekanan Darah</th>
+                        <th class="px-4 py-2">Temperatur</th>
+                        <th class="px-4 py-2">Kelembapan</th>
+                        <th class="px-4 py-2">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="sensor-data-body">
+                    <!-- Dynamic rows will be inserted here -->
+                </tbody>
+            </table>
+            <button id="download-csv" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg">Download CSV</button>
+        </div>
+    </div>
+
+    <script>
+        // URL Broker MQTT di AWS IoT
+        const mqttBrokerUrl = "wss://a3ls1kwa0v1k19-ats.iot.ap-southeast-1.amazonaws.com:443";  // Ganti dengan endpoint broker MQTT Anda
+        const mqttClient = mqtt.connect(mqttBrokerUrl, {
+        username: 'your-mqtt-username',  // Opsional, jika diperlukan untuk autentikasi
+        password: 'your-mqtt-password'   // Opsional, jika diperlukan untuk autentikasi
+        });
+
+        const mqttTopic = "actuator/control"; // Topik untuk mengirim kontrol aktuator
+
+        mqttClient.on('message', (topic, message) => {
+            if (topic === mqttTopicSubscribe) {
+        const data = JSON.parse(message.toString());
+        console.log('Received message from subscribed topic:', data);
+
+        // Lakukan tindakan berdasarkan data yang diterima, misalnya:
+        if (data.actuatorId === 'actuator-1' && data.status === 'ON') {
+            // Misalnya, mengubah status visual atau memberikan sinyal di web
+            document.getElementById('status-text-1').textContent = 'Aktuator 1: ON';
+            document.getElementById('status-circle-1').classList.add('bg-green-500');
+        }
+        }
+});
+
+
+        // Fungsi untuk mengirimkan perintah ke topik actuator/control
+        function sendActuatorCommand(actuatorId, status) 
+        {
+            const message = JSON.stringify({ actuatorId, status });
+            mqttClient.publish(mqttTopic, message);
+            console.log(`Sent actuator command: ${actuatorId} = ${status}`);
+        }
+
+        // Event listeners untuk tombol di web
+        document.getElementById('actuator-1').addEventListener('click', () => sendActuatorCommand('actuator-1', 'ON'));
+        document.getElementById('actuator-2').addEventListener('click', () => sendActuatorCommand('actuator-2', 'ON'));
+        document.getElementById('actuator-3').addEventListener('click', () => sendActuatorCommand('actuator-3', 'ON'));
+        document.getElementById('actuator-4').addEventListener('click', () => sendActuatorCommand('actuator-4', 'ON'));
+        document.getElementById('actuator-5').addEventListener('click', () => sendActuatorCommand('actuator-5', 'ON'));
+
+        // URL for the AWS IoT Core JSON data
+        const jsonUrl = "https://kelompok1wahyuiot.s3.ap-southeast-1.amazonaws.com/kuncikel1.json";
+
+        let sensorData = []; // To store data for CSV export
+
+        // Initialize Chart.js charts
+        const max30102HeartRateChart = new Chart(document.getElementById('max30102-heart-rate-chart'), { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [{ label: 'Heart Rate (bpm)', data: [] }] 
+            } 
+        });
+
+        const max30102SpO2Chart = new Chart(document.getElementById('max30102-spo2-chart'), { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [{ label: 'SpO2 (%)', data: [] }] 
+            } 
+        });
+
+        const vibrationChart = new Chart(document.getElementById('vibration-chart'), { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [{ label: 'Vibration Status', data: [] }] 
+            } 
+        });
+
+        const bmp280Chart = new Chart(document.getElementById('bmp280-chart'), { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [{ label: 'Pressure (mmHg)', data: [] }] 
+            } 
+        });
+
+        const dht11Chart = new Chart(document.getElementById('dht11-chart'), { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [{ label: 'Temperature (°C)', data: [] }] 
+            } 
+        });
+
+        // New chart for Humidity
+        const humidityChart = new Chart(document.getElementById('humidity-chart'), { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [{ label: 'Humidity (%)', data: [] }] 
+            } 
+        });
+
+        const combinedChart = new Chart(document.getElementById('combined-chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Heart Rate (bpm)', data: [], borderColor: 'rgba(255, 99, 132, 1)', fill: false },
+                    { label: 'SpO2 (%)', data: [], borderColor: 'rgba(54, 162, 235, 1)', fill: false },
+                    { label: 'Vibration Status', data: [], borderColor: 'rgba(255, 206, 86, 1)', fill: false },
+                    { label: 'Pressure (mmHg)', data: [], borderColor: 'rgba(75, 192, 192, 1)', fill: false },
+                    { label: 'Temperature (°C)', data: [], borderColor: 'rgba(153, 102, 255, 1)', fill: false },
+                    { label: 'Humidity (%)', data: [], borderColor: 'rgba(255, 159, 64, 1)', fill: false }
+                ]
+            }
+        });
+
+        function updateData(data) {
+            // Display the sensor data on the webpage
+            document.getElementById('heart-rate').textContent = `Heart Rate: ${Math.round(data.beatAvg * 1000)} bpm`;
+            document.getElementById('spo2').textContent = `SpO2: ${data.spO2}%`;
+            document.getElementById('vibration-status').textContent = `Status: ${data.getaran}`;
+
+            // Kalibrasi Tekanan Darah
+            let calibratedPressure = data.pressure;
+            if (calibratedPressure > 800 && calibratedPressure < 1100) {
+                calibratedPressure = (calibratedPressure - 900) * 0.1 + 100;
+            }
+
+            document.getElementById('pressure').textContent = `Pressure: ${calibratedPressure.toFixed(2)} mmHg`;
+            document.getElementById('temperature-dht').textContent = `Temperature: ${data.temperature_dht}°C`;
+            document.getElementById('humidity').textContent = `Humidity: ${data.humidity}%`;
+
+            const timestamp = new Date().toLocaleTimeString();
+
+            max30102HeartRateChart.data.labels.push(timestamp);
+            max30102HeartRateChart.data.datasets[0].data.push(Math.round(data.beatAvg * 1000));
+            max30102HeartRateChart.update();
+
+            max30102SpO2Chart.data.labels.push(timestamp);
+            max30102SpO2Chart.data.datasets[0].data.push(data.spO2);
+            max30102SpO2Chart.update();
+
+            vibrationChart.data.labels.push(timestamp);
+            vibrationChart.data.datasets[0].data.push(data.getaran === "Detected" ? 1 : 0);
+            vibrationChart.update();
+
+            bmp280Chart.data.labels.push(timestamp);
+            bmp280Chart.data.datasets[0].data.push(calibratedPressure);
+            bmp280Chart.update();
+
+            dht11Chart.data.labels.push(timestamp);
+            dht11Chart.data.datasets[0].data.push(data.temperature_dht);
+            dht11Chart.update();
+
+            // Update humidity chart
+            humidityChart.data.labels.push(timestamp);
+            humidityChart.data.datasets[0].data.push(data.humidity);
+            humidityChart.update();
+
+            combinedChart.data.labels.push(timestamp);
+            combinedChart.data.datasets[0].data.push(Math.round(data.beatAvg * 1000));
+            combinedChart.data.datasets[1].data.push(data.spO2);
+            combinedChart.data.datasets[2].data.push(data.getaran === "Detected" ? 1 : 0);
+            combinedChart.data.datasets[3].data.push(calibratedPressure);
+            combinedChart.data.datasets[4].data.push(data.temperature_dht);
+            combinedChart.data.datasets[5].data.push(data.humidity);
+            combinedChart.update();
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td class="px-4 py-2">${timestamp}</td>
+                <td class="px-4 py-2">${Math.round(data.beatAvg * 1000)} bpm</td>
+                <td class="px-4 py-2">${data.spO2}</td>
+                <td class="px-4 py-2">${data.getaran}</td>
+                <td class="px-4 py-2">${calibratedPressure.toFixed(2)} mmHg</td>
+                <td class="px-4 py-2">${data.temperature_dht}</td>
+                <td class="px-4 py-2">${data.humidity}</td>
+                <td class="px-4 py-2"><button class="text-blue-500">Details</button></td>
+            `;
+            document.getElementById('sensor-data-body').appendChild(row);
+
+            // Save data for CSV export
+            sensorData.push(data);
+        }
+
+        // Fetch data from AWS IoT JSON file
+        async function fetchData() {
+            try {
+                const response = await fetch(jsonUrl);
+                const data = await response.json();
+                updateData(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Fetch data every 5 seconds
+        setInterval(fetchData, 5000);
+
+        // Download data as CSV
+        document.getElementById('download-csv').addEventListener('click', () => {
+            const csv = Papa.unparse(sensorData);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'sensor-data.csv';
+            link.click();
+        });
+
+        // Theme toggle functionality
+        document.getElementById('dark-mode-button').addEventListener('click', () => {
+            const body = document.querySelector('body');
+            if (body.classList.contains('light-mode')) {
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+            } else {
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+            }
+        });
+    </script>
+    <script src="script.js"></script>
+</body>
+
+</html>
